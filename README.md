@@ -182,6 +182,7 @@
 | BackEnd  |                      |                 |        |
 |         | DB                      | MySQL                | 8.0.30         |
 |          | Cache Storage           | Redis              | 7-alpine         |
+|          | Java                    | Zulu                 | 8   |
 |          | Java                    | Spring boot                 | 2.7.4   |
 |         |Java                      | QueryDSL                    | 5.0.0    |
 |Local         |                     |                  |    |
@@ -191,7 +192,7 @@
 |          | Anaconda                    |                  | -  |
 |          | Pytorch                    |                  |  1.12.1  |
 |          | Yolo                    |         v7          |  -  |
-|          | StrongSort                    |      ONSnet            |  -  |
+|          | StrongSort                    |      OSnet            |  -  |
 |          | openCV-python                    |                 |   4.6.0.66  |
 | FrontEnd |                    |                      |          |
 |          | HTML5                   |                      | \-          |
