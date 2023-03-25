@@ -1,7 +1,12 @@
 <img src="https://user-images.githubusercontent.com/53360337/201550869-95438e85-8d56-4be2-a0db-bd17725201b9.png" width="200" height="200">
 
 
-# DIrecting Assistance (DIA)
+# DIA(DIrecting Assistance)
+
+> 실시간 풋살 영상 분석 및 전술 보드 서비스
+
+**DIA**는 풋살을 즐기는 일반인들이 쉽고 간단하게 사용할 수 있는 실시간 운동 분석 서비스입니다. 자체 구현한 인공지능 모델이 드론으로 촬영한 **경기 영상을 실시간으로 분석하여** 좌표를 표시한 영상을 제공하며, 더욱 편리한 전술 수립을 위해 **드로잉 기능**을 지원합니다. 또한, Wear OS를 활용하여 **선수 개개인의 경기 내역을 기록 및 분석**할 수 있습니다.
+
 - 서비스명 : DIA
 - 팀 구성원 : 권혁림, 강승훈, 김진산, 윤영훈, 이슬기, 조경민 
 - 개발 기간 : 2022.10.11 ~ 2022.11.21 (6주)
@@ -24,11 +29,29 @@
 
 # 서비스 소개
 
-<h2> 실시간 축구 영상 분석 및 전술 보드 서비스 </h2>
 
 <br>
 
 ## 주요 기능
+    
+- 실시간 드론 영상 좌표 처리 및 트래킹
+- 영상 좌표 2D 표시 및 드로잉, 실시간 심박수 측정 기능 제공
+- 히트맵 등 경기 분석 데이터 제공
+    
+## 세부 기능
+
+| 구분 | 기능                       | 설명                                                                          | 비고                    |
+| :--- | :------------------------- | :---------------------------------------------------------------------------- | :---------------------- |
+| 1    | 실시간 트래킹              | 실시간으로 드론 영상을 분석하여 좌표 처리 및 트래킹                           | PC 실행 파일(exe)       |
+| 2    | 좌표 데이터 기반 영상 표시 | 실시간으로 트래킹한 좌표 데이터를 2D 영상으로 표시                            | Tablet PC(Web)          |
+| 3    | 버퍼링 및 재생바 조절      | 사용자 경험 향상을 위한 버퍼링 및 재생바를 통한 영상 재생 시점 조절 기능 제공 | Tablet PC(Web)          |
+| 4    | 전술보드 드로잉            | 실시간 영상 위에 색상을 선택하여 다양한 전술 표시 가능                        | Tablet PC(Web)          |
+| 5    | 선수별 실시간 심박수 측정  | 갤럭시 워치를 이용한 실시간 심박수 측정 및 표시                               | Wear OS, Tablet PC(Web) |
+| 6    | 선수별 경기 기록 분석      | 경기별 심박수, 히트맵 등 경기 내용 기록 및 분석 결과를 능력치와 그래프로 제공 | Mobile(Android App)     |
+
+    
+## 화면 소개
+
 ### 사용법 및 선수 등록
 ![태블릿](https://user-images.githubusercontent.com/77014020/202987251-4cf541dd-3c12-40c5-9383-be7678ee2ee1.gif)
 
@@ -92,10 +115,369 @@
 
 <br>
 
-# 시스템 아키텍처
+## 시스템 아키텍처
 ![image](https://user-images.githubusercontent.com/53360337/201556720-4a847a20-e02a-417b-8898-8d9293ee7a18.png)
+    
+Samsung Flow와 드론을 이용하여 촬영한 영상을 GPU가 탑재된 노트북으로 전송하여, StrongSORT 및 YOLO로 구성된 영상 처리 프로그램을 실행 후 실시간으로 분석한 결과를 태블릿에 표시합니다. Wear OS를 착용한 선수는 실시간 심박수 측정이 가능합니다.
+    
+## 개발 설정
+
+### 서비스별 포트 번호
+
+| 구분 | 포트번호 |
+| --- | --- |
+| Jenkins | 8080 |
+| Spring boot | 8081 |
+| React | 8082 |
+| MySQL | 3306 |
+| Redis | 6379 |
 
 <br>
+    
+### Dockerfile
+
+```
+# backend/Dockerfile (Spring Boot)
+
+FROM openjdk:8-jdk-alpine
+RUN addgroup -S seungh1024 && adduser -S seungh1024 -G seungh1024
+USER seungh1024:seungh1024
+ARG JAR_FILE=build/libs/*.jar
+COPY ${JAR_FILE} app.jar
+ENTRYPOINT ["java","-jar","/app.jar"] 
+```
+
+```
+# frontend/Dockerfile (React)
+
+FROM node:16.15.0 as build-stage
+WORKDIR /app
+COPY package*.json ./
+COPY package-lock.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+FROM nginx:stable-alpine as production-stage
+RUN rm -rf /etc/nginx/conf.d/default.conf
+COPY ./nginx/default.conf /etc/nginx/conf.d/default.conf
+RUN rm -rf /usr/share/nginx/html/*
+COPY --from=build-stage /app/build /usr/share/nginx/html
+EXPOSE 8082
+CMD ["nginx", "-g","daemon off;"] 
+```
+
+### Docker-Compose.yml
+
+```
+version: "3.8"
+services:
+  react:
+    container_name: dia-react
+    build: ./frontend/
+    restart: on-failure
+    volumes:
+      - ./frontend/nginx/:/etc/nginx/conf.d/
+    ports:
+      - 8082:8082
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    ports:
+      - 6379:6379
+    command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
+    volumes:
+      - /redis/data:/data
+      - /redis/conf/redis.conf:/usr/local/conf/redis.conf
+
+  mysqldb:
+    container_name: mysql
+    image: mysql:latest
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=rnjsgurfla
+      - MYSQL_DATABASE=ssafy
+      - MYSQL_USER=ssafy
+      - MYSQL_PASSWORD=rnjsgurfla
+    ports:
+      - 3306:3306
+    command: --default-authentication-plugin=mysql_native_password
+      - --lower_case_table_names=1
+    volumes:
+      - ./mysqldata:/var/lib/mysql
+  spring:
+    container_name: dia-spring
+    depends_on:
+```
+
+### Jenkins 설정 파일
+
+```
+pipeline {
+    agent any
+
+    stages {
+        stage('Prepare') {
+            steps {
+                sh 'echo "Clonning Repository"'
+                git branch: 'release',
+                    url: 'https://lab.ssafy.com/s07-final/S07P31B307.git',
+                    credentialsId: 'DIA'
+            }
+            post {
+                success {
+                     sh 'echo "Successfully Cloned Repository"'
+                 }
+                 failure {
+                     sh 'echo "Fail Cloned Repository"'
+                 }
+            }
+        }
+
+        stage('Docker stop'){
+            steps {
+                sh 'sudo chmod -R 777 /usr/local/bin'
+                sh 'sudo chmod +x /usr/local/bin/docker-compose'
+
+                // 기존 백그라운드에 돌아가던 컨테이너 중지
+                sh 'echo "Docker Container Stop"'
+                sh 'sudo docker-compose stop'
+
+            }
+            post {
+                 failure {
+                     sh 'echo "Docker Fail"'
+                }
+            }
+        }
+
+        stage('RM Docker'){
+            steps {
+                sh 'echo "Remove Docker"'
+
+                // 정지된 도커 컨테이너 찾아서 컨테이너 ID로 삭제함
+                sh '''
+                    result=$(sudo  docker container ls -a --filter "name=dia*" -q )
+                    if [ -n "$result" ]
+                    then
+                        sudo docker rm $(sudo docker container ls -a --filter "name=dia*" -q)
+                    else
+                        echo "No such containers"
+                    fi
+                '''
+
+                // dia로 시작하는 이미지 찾아서 삭제함
+                sh '''
+                    result=$(sudo  docker images -f "reference=dia*" -q )
+                    if [ -n "$result" ]
+                    then
+                        sudo docker rmi -f $(sudo docker images -f "reference=dia*" -q)
+                    else
+                        echo "No such container images"
+                    fi
+                '''
+
+                // 안쓰는이미지 -> <none> 태그 이미지 찾아서 삭제함
+                sh '''
+                    result=$(sudo docker images -f "dangling=true" -q)
+                    if [ -n "$result" ]
+                    then
+                        sudo docker rmi -f $(sudo docker images -f "dangling=true" -q)
+                    else
+                        echo "No such container images"
+                    fi
+                '''
+            }
+            post {
+                 failure {
+                     sh 'echo "Remove Fail"'
+                }
+            }
+        }
+
+        stage('Build Gradle'){
+            steps{
+                dir('backend') {
+                    sh "sudo chmod +x gradlew"
+                    sh """
+                    sudo ./gradlew clean build --exclude-task test
+                    """
+                }
+            }
+            post{
+                failure{
+                    sh 'echo "Build Gradle Fail"'
+                }
+            }
+        }
+
+        stage('Bulid & Run') {
+            steps {
+                sh 'echo " Image Bulid Start"'
+                script {
+                    // 업데이트된 코드로 빌드 및 실행
+                    sh 'sudo docker-compose up -d'
+                    sh 'sudo chmod 777 -R /home/ubuntu/profile'
+                    sh 'sudo chmod 777 -R /var/lib/docker'
+                    sh 'sudo chmod 777 -R /var/lib/docker/containers/*'
+                }
+                
+            }
+
+            post {
+                failure {
+                    sh 'echo "Bulid Docker Fail"'
+                }
+            }
+        } 
+    }
+} 
+```
+
+<br>
+    
+## 프로젝트 파일 구조
+
+### Backend
+
+```
+backend
+ ├─gradle
+ │  └─wrapper
+ └─src
+    ├─main
+    │  ├─java
+    │  │  └─com
+    │  │      └─ssafy
+    │  │          └─backend
+    │  │              ├─config
+    │  │              ├─controller
+    │  │              ├─dto
+    │  │              ├─entity
+    │  │              ├─env
+    │  │              ├─jwt
+    │  │              ├─mapper
+    │  │              ├─redis
+    │  │              ├─repository
+    │  │              ├─service
+    │  │              └─util
+    │  └─resources
+    └─test
+        └─java
+            └─com
+                └─ssafy
+                    └─backend
+```
+
+### Frontend
+
+```
+frontend
+ ├─public
+ └─src
+    ├─assets
+    │  └─Fonts
+    ├─components
+    │  ├─Common
+    │  ├─ExplainPage
+    │  ├─FieldPage
+    │  │  └─FieldTools
+    │  ├─FisrtPage
+    │  ├─MainPage
+    │  ├─MyPage
+    │  ├─Navbar
+    │  ├─TeamMake
+    │  └─test
+    ├─context
+    ├─hooks
+    ├─pages
+    ├─theme
+    └─utils
+```
+
+### Android
+
+```
+MyApplication3
+ ├─.idea
+ ├─app
+ │  └─src
+ │      ├─androidTest
+ │      │  └─java
+ │      │      └─com
+ │      │          └─example
+ │      │              └─myapplication
+ │      ├─debug
+ │      │  └─res
+ │      │      ├─mipmap-hdpi
+ │      │      ├─mipmap-mdpi
+ │      │      ├─mipmap-xhdpi
+ │      │      ├─mipmap-xxhdpi
+ │      │      ├─mipmap-xxxhdpi
+ │      │      └─values
+ │      ├─main
+ │      │  ├─java
+ │      │  │  └─com
+ │      │  │      └─example
+ │      │  │          └─myapplication
+ │      │  └─res
+ │      │      ├─anim
+ │      │      ├─drawable
+ │      │      ├─drawable-v24
+ │      │      ├─layout
+ │      │      ├─mipmap-anydpi-v26
+ │      │      ├─mipmap-hdpi
+ │      │      ├─mipmap-mdpi
+ │      │      ├─mipmap-xhdpi
+ │      │      ├─mipmap-xxhdpi
+ │      │      ├─mipmap-xxxhdpi
+ │      │      ├─values
+ │      │      ├─values-night
+ │      │      └─xml
+ │      └─test
+ │          └─java
+ │              └─com
+ │                  └─example
+ │                      └─myapplication
+ └─gradle
+    └─wrapper
+```
+
+### WearOS
+
+```
+WearOS
+  ├─.idea
+  ├─app
+  ├─release
+  │  └─src
+  │      ├─debug
+  │      │  └─res
+  │      │      ├─mipmap-anydpi-v26
+  │      │      ├─mipmap-hdpi
+  │      │      ├─mipmap-mdpi
+  │      │      ├─mipmap-xhdpi
+  │      │      ├─mipmap-xxhdpi
+  │      │      ├─mipmap-xxxhdpi
+  │      │      └─values
+  │      └─main
+  │          ├─java
+  │          │  └─com
+  │          │      └─example
+  │          │          └─wearos
+  │          └─res
+  │              ├─drawable
+  │              ├─layout
+  │              ├─mipmap-hdpi
+  │              ├─mipmap-mdpi
+  │              ├─mipmap-xhdpi
+  │              ├─mipmap-xxhdpi
+  │              ├─mipmap-xxxhdpi
+  │              ├─values
+  │              └─values-round
+  └─gradle
+        └─wrapper
+```
+
 
 <div id = '3'>
 
@@ -243,15 +625,7 @@
 
 <br>
 
-## EC2 포트
 
-| 구분       | 포트번호                    | 
-| -------- | ----------------------- |
-| Jenkins         |  8080                | 
-| Spring boot         | 8081                    | 
-| React         |  8082               | 
-| MySQL         |     3306             | 
-| Redis         |   6379               | 
 
 <br>
 
